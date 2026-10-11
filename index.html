@@ -133,7 +133,7 @@
       <span style="color: #64748b; margin-left: 12px;">MOUNT PANORAMA, BATHURST</span>
     </div>
     <div style="display: flex; gap: 16px; align-items: center;">
-      <span id="connectionBadge" class="connection-status status-sim">SIMULATION MODE</span>
+      <span id="connectionBadge" class="connection-status status-sim">CONNECTING...</span>
       <span>LAP <b>18</b> / 161</span>
       <span class="flag-badge">GREEN FLAG</span>
     </div>
@@ -168,7 +168,6 @@
       </div>
 
       <svg id="trackSvg" viewBox="0 0 520 480">
-        <!-- Accurate Mount Panorama Outline -->
         <path id="bathurstTrack" class="track-bg" d="
           M 125 430
           L 65 430
@@ -182,3 +181,23 @@
           L 340 65
           C 375 63, 400 82, 405 110
           C 410 136, 390 158, 368 164
+          L 326 172
+          C 312 175, 306 188, 314 200
+          L 352 225
+          C 366 235, 362 254, 344 260
+          L 262 274
+          C 244 277, 240 292, 250 306
+          L 395 372
+          C 412 380, 416 396, 402 408
+          L 352 430
+          C 336 437, 326 430, 320 416
+          L 300 430
+          Z" />
+
+        <path id="pitLossPath" class="track-pit-loss" d="" />
+
+        <text x="75" y="450" fill="#64748b" font-size="9" font-family="monospace">PIT STRAIGHT (S/F)</text>
+        <text x="32" y="310" fill="#64748b" font-size="9" font-family="monospace">MOUNTAIN STR.</text>
+        <text x="175" y="222" fill="#64748b" font-size="9" font-family="monospace">THE CUTTING</text>
+        <text x="270" y="55" fill="#64748b" font-size="9" font-family="monospace">SKYLINE (S1)</text>
+        <text x="415" y="1
