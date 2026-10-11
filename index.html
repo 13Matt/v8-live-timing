@@ -14,6 +14,8 @@
             --accent-green: #238636;
             --accent-red: #da3633;
             --accent-gold: #d29922;
+            --accent-silver: #c0c0c0;
+            --accent-bronze: #cd7f32;
             --pit-badge: #e3b341;
         }
 
@@ -111,22 +113,26 @@
 
         .pos-cell {
             font-weight: 800;
-            width: 50px;
+            width: 60px;
         }
 
         .p1 { color: var(--accent-gold); }
-        .p2 { color: #c0c0c0; }
-        .p3 { color: #cd7f32; }
+        .p2 { color: var(--accent-silver); }
+        .p3 { color: var(--accent-bronze); }
+
+        .car-cell {
+            width: 70px;
+        }
 
         .car-num {
             font-weight: 700;
             background: #252a35;
-            padding: 2px 8px;
+            padding: 3px 8px;
             border-radius: 4px;
             border: 1px solid var(--border-color);
             display: inline-block;
             text-align: center;
-            min-width: 28px;
+            min-width: 32px;
         }
 
         .driver-name {
@@ -137,7 +143,7 @@
             background-color: var(--pit-badge);
             color: #000;
             font-weight: 800;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             padding: 2px 6px;
             border-radius: 4px;
             margin-left: 8px;
@@ -160,12 +166,12 @@
         <table>
             <thead>
                 <tr>
-                    <th>Pos</th>
+                    <th>POS</th>
                     <th>#</th>
-                    <th>Driver</th>
-                    <th>Laps</th>
-                    <th>Gap / Int</th>
-                    <th>Last Lap</th>
+                    <th>DRIVER</th>
+                    <th>LAPS</th>
+                    <th>GAP / INT</th>
+                    <th>LAST LAP</th>
                     <th>S1</th>
                     <th>S2</th>
                     <th>S3</th>
@@ -189,7 +195,7 @@
         async function fetchTelemetry() {
             try {
                 const response = await fetch(TELEMETRY_URL, { cache: "no-store" });
-                if (!response.ok) throw new Error("HTTP error " + response.status);
+                if (!response.ok) throw new Error("HTTP " + response.status);
 
                 const data = await response.json();
 
@@ -199,30 +205,30 @@
                     statusBadge.className = "status-badge status-live";
                 }
             } catch (err) {
-                console.warn("Polling error:", err);
+                console.warn("Telemetry fetch error:", err);
                 statusBadge.textContent = "OFFLINE";
                 statusBadge.className = "status-badge status-error";
             }
         }
 
         function renderLeaderboard(cars) {
-            // Sort strictly by position
-            cars.sort((a, b) => a.pos - b.pos);
+            // Sort by actual running position P1 -> P26
+            cars.sort((a, b) => (Number(a.pos) || 99) - (Number(b.pos) || 99));
 
-            // Build replacement HTML to eliminate stale or duplicate rows
             let html = "";
             cars.forEach(car => {
+                const posNum = Number(car.pos) || "-";
                 let posClass = "";
-                if (car.pos === 1) posClass = "p1";
-                else if (car.pos === 2) posClass = "p2";
-                else if (car.pos === 3) posClass = "p3";
+                if (posNum === 1) posClass = "p1";
+                else if (posNum === 2) posClass = "p2";
+                else if (posNum === 3) posClass = "p3";
 
                 html += `
                     <tr>
-                        <td class="pos-cell ${posClass}">P${car.pos}</td>
-                        <td><span class="car-num">${car.car}</span></td>
+                        <td class="pos-cell ${posClass}">P${posNum}</td>
+                        <td class="car-cell"><span class="car-num">${car.car}</span></td>
                         <td class="driver-name">
-                            ${car.name}
+                            ${car.name || ('Car #' + car.car)}
                             ${car.in_pit ? '<span class="pit-indicator">PIT</span>' : ''}
                         </td>
                         <td class="timing-cell">${car.laps || '-'}</td>
@@ -238,7 +244,7 @@
             tbody.innerHTML = html;
         }
 
-        // Poll every 1 second
+        // Initial poll and recurring 1-second refresh
         fetchTelemetry();
         setInterval(fetchTelemetry, 1000);
     </script>
