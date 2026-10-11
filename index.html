@@ -3,248 +3,368 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>V8 Supercars Live Timing</title>
+    <title>Supercars Live Telemetry & Circle of Doom</title>
     <style>
         :root {
-            --bg-dark: #0f1115;
-            --panel-bg: #181b22;
-            --border-color: #2b303c;
+            --bg-page: #0b0d11;
+            --panel-bg: #131720;
+            --border: #232834;
             --text-main: #f0f3f6;
-            --text-dim: #8b949e;
+            --text-muted: #798394;
             --accent-green: #238636;
             --accent-red: #da3633;
-            --accent-gold: #d29922;
-            --accent-silver: #c0c0c0;
-            --accent-bronze: #cd7f32;
-            --pit-badge: #e3b341;
+            --p1-gold: #e3a936;
+            --primary-badge: #1f6feb;
+            --co-badge: #8957e5;
+            --pit-badge: #d29922;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
         body {
-            background-color: var(--bg-dark);
+            background-color: var(--bg-page);
             color: var(--text-main);
-            padding: 20px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
         }
 
-        .header {
+        header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             background: var(--panel-bg);
-            border: 1px solid var(--border-color);
-            padding: 16px 24px;
+            border: 1px solid var(--border);
+            padding: 12px 20px;
             border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .header h1 {
-            font-size: 1.4rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            margin-bottom: 14px;
         }
 
         .status-badge {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 700;
-            padding: 6px 14px;
-            border-radius: 20px;
-            letter-spacing: 0.5px;
-            background: #333;
-            color: #aaa;
+            padding: 4px 12px;
+            border-radius: 12px;
+            background: #222;
+            color: #888;
         }
 
-        .status-live {
-            background: var(--accent-green);
-            color: #fff;
-            box-shadow: 0 0 10px rgba(35, 134, 54, 0.4);
+        .status-live { background: var(--accent-green); color: #fff; }
+        .status-offline { background: var(--accent-red); color: #fff; }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 65% 35%;
+            gap: 16px;
+            flex: 1;
+            min-height: 0;
         }
 
-        .status-error {
-            background: var(--accent-red);
-            color: #fff;
-        }
-
-        .table-container {
+        .panel {
             background: var(--panel-bg);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border);
             border-radius: 8px;
-            overflow-x: auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-title {
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Leaderboard Table */
+        .table-wrap {
+            flex: 1;
+            overflow-y: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            text-align: left;
+            font-variant-numeric: tabular-nums;
+            font-size: 0.85rem;
         }
 
         th {
-            background-color: #12151b;
-            color: var(--text-dim);
-            font-size: 0.8rem;
+            position: sticky;
+            top: 0;
+            background: #0f1218;
+            color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 12px 16px;
-            border-bottom: 2px solid var(--border-color);
+            font-size: 0.75rem;
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 2px solid var(--border);
         }
 
         td {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 0.95rem;
-            font-variant-numeric: tabular-nums;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
         }
 
-        tr:nth-child(even) {
-            background-color: rgba(255, 255, 255, 0.02);
-        }
+        tr:hover { background: rgba(255, 255, 255, 0.03); }
 
-        tr:hover {
-            background-color: rgba(255, 255, 255, 0.05);
-        }
-
-        .pos-cell {
-            font-weight: 800;
-            width: 60px;
-        }
-
-        .p1 { color: var(--accent-gold); }
-        .p2 { color: var(--accent-silver); }
-        .p3 { color: var(--accent-bronze); }
-
-        .car-cell {
-            width: 70px;
-        }
+        .pos { font-weight: 800; width: 45px; }
+        .p1 { color: var(--p1-gold); }
 
         .car-num {
-            font-weight: 700;
-            background: #252a35;
-            padding: 3px 8px;
-            border-radius: 4px;
-            border: 1px solid var(--border-color);
-            display: inline-block;
-            text-align: center;
-            min-width: 32px;
-        }
-
-        .driver-name {
-            font-weight: 600;
-        }
-
-        .pit-indicator {
-            background-color: var(--pit-badge);
-            color: #000;
-            font-weight: 800;
-            font-size: 0.72rem;
+            background: #1b202c;
+            border: 1px solid var(--border);
             padding: 2px 6px;
             border-radius: 4px;
-            margin-left: 8px;
+            font-weight: 700;
+            display: inline-block;
+            text-align: center;
+            min-width: 28px;
         }
 
-        .timing-cell {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 0.9rem;
+        .badge-role {
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 2px 5px;
+            border-radius: 3px;
+            margin-left: 6px;
+        }
+        .role-pri { background: var(--primary-badge); color: #fff; }
+        .role-co  { background: var(--co-badge); color: #fff; }
+
+        .badge-pit {
+            background: var(--pit-badge);
+            color: #000;
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 2px 5px;
+            border-radius: 3px;
+            margin-left: 6px;
+        }
+
+        .mono {
+            font-family: ui-monospace, Consolas, monospace;
+        }
+
+        /* Circle of Doom SVG */
+        .circle-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .circle-controls label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+
+        .circle-wrap {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 10px;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            max-height: 440px;
         }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h1>V8 Supercars Live Telemetry</h1>
+    <header>
+        <h2>Supercars Live Timing & Telemetry</h2>
         <div id="statusBadge" class="status-badge">CONNECTING...</div>
-    </div>
+    </header>
 
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>POS</th>
-                    <th>#</th>
-                    <th>DRIVER</th>
-                    <th>LAPS</th>
-                    <th>GAP / INT</th>
-                    <th>LAST LAP</th>
-                    <th>S1</th>
-                    <th>S2</th>
-                    <th>S3</th>
-                </tr>
-            </thead>
-            <tbody id="leaderboardBody">
-                <tr>
-                    <td colspan="9" style="text-align: center; color: var(--text-dim); padding: 30px;">
-                        Waiting for live telemetry stream...
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+    <div class="main-container">
+        <!-- Timing Tower -->
+        <div class="panel">
+            <div class="panel-title">Race Leaderboard</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Pos</th>
+                            <th>#</th>
+                            <th>Driver</th>
+                            <th>Laps</th>
+                            <th>Gap (P1)</th>
+                            <th>Interval</th>
+                            <th>S1</th>
+                            <th>S2</th>
+                            <th>S3</th>
+                            <th>Last Lap</th>
+                        </tr>
+                    </thead>
+                    <tbody id="boardBody">
+                        <tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 40px;">Waiting for Natsoft data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Circle of Doom -->
+        <div class="panel">
+            <div class="panel-title">
+                <span>Circle of Doom</span>
+                <div class="circle-controls">
+                    <label>
+                        <input type="checkbox" id="togglePitWindow" checked>
+                        Show Pit Window
+                    </label>
+                    <label>
+                        Loss: <input type="number" id="pitLossSec" value="22" style="width: 44px; background: #0b0d11; color: #fff; border: 1px solid var(--border); padding: 2px; text-align: center;"> s
+                    </label>
+                </div>
+            </div>
+            <div class="circle-wrap">
+                <svg viewBox="-160 -160 320 320" id="doomCircle">
+                    <!-- Circuit ring -->
+                    <circle cx="0" cy="0" r="120" stroke="#1c212c" stroke-width="14" fill="none" />
+                    <!-- Start/Finish line -->
+                    <line x1="0" y1="-128" x2="0" y2="-112" stroke="#e3a936" stroke-width="3" />
+                    <text x="0" y="-134" text-anchor="middle" fill="#e3a936" font-size="8" font-weight="700">S/F</text>
+                    
+                    <!-- Dynamic pit window wedge -->
+                    <path id="pitWedge" d="" fill="rgba(218, 54, 51, 0.18)" stroke="rgba(218, 54, 51, 0.6)" stroke-dasharray="2 2" />
+
+                    <!-- Cars will be drawn here -->
+                    <g id="carNodes"></g>
+                </svg>
+            </div>
+        </div>
     </div>
 
     <script>
-        const TELEMETRY_URL = "https://vigilant-space-cod-jjj576w975963qrvq-8765.app.github.dev/telemetry";
+        const API_URL = "https://vigilant-space-cod-jjj576w975963qrvq-8765.app.github.dev/telemetry";
+        const boardBody = document.getElementById("boardBody");
         const statusBadge = document.getElementById("statusBadge");
-        const tbody = document.getElementById("leaderboardBody");
+        const carNodes = document.getElementById("carNodes");
+        const pitWedge = document.getElementById("pitWedge");
+        const togglePitWindow = document.getElementById("togglePitWindow");
+        const pitLossSec = document.getElementById("pitLossSec");
+
+        let currentCars = [];
 
         async function fetchTelemetry() {
             try {
-                const response = await fetch(TELEMETRY_URL, { cache: "no-store" });
-                if (!response.ok) throw new Error("HTTP " + response.status);
-
-                const data = await response.json();
-
-                if (data && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
-                    renderLeaderboard(data.leaderboard);
+                const res = await fetch(API_URL, { cache: "no-store" });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const data = await res.json();
+                
+                if (data.leaderboard && data.leaderboard.length > 0) {
+                    currentCars = data.leaderboard;
+                    renderTable(currentCars);
+                    renderCircle(currentCars);
                     statusBadge.textContent = "LIVE NATSOFT";
                     statusBadge.className = "status-badge status-live";
                 }
             } catch (err) {
-                console.warn("Telemetry fetch error:", err);
                 statusBadge.textContent = "OFFLINE";
-                statusBadge.className = "status-badge status-error";
+                statusBadge.className = "status-badge status-offline";
             }
         }
 
-        function renderLeaderboard(cars) {
-            // Sort by actual running position P1 -> P26
-            cars.sort((a, b) => (Number(a.pos) || 99) - (Number(b.pos) || 99));
-
+        function renderTable(cars) {
             let html = "";
-            cars.forEach(car => {
-                const posNum = Number(car.pos) || "-";
-                let posClass = "";
-                if (posNum === 1) posClass = "p1";
-                else if (posNum === 2) posClass = "p2";
-                else if (posNum === 3) posClass = "p3";
-
+            cars.forEach(c => {
+                const isP1 = c.pos === 1;
+                const roleClass = c.role === "CO" ? "role-co" : "role-pri";
+                
                 html += `
                     <tr>
-                        <td class="pos-cell ${posClass}">P${posNum}</td>
-                        <td class="car-cell"><span class="car-num">${car.car}</span></td>
-                        <td class="driver-name">
-                            ${car.name || ('Car #' + car.car)}
-                            ${car.in_pit ? '<span class="pit-indicator">PIT</span>' : ''}
+                        <td class="pos ${isP1 ? 'p1' : ''}">P${c.pos}</td>
+                        <td><span class="car-num">${c.car}</span></td>
+                        <td>
+                            <strong>${c.name}</strong>
+                            <span class="badge-role ${roleClass}">${c.role}</span>
+                            ${c.in_pit ? '<span class="badge-pit">PIT</span>' : ''}
                         </td>
-                        <td class="timing-cell">${car.laps || '-'}</td>
-                        <td class="timing-cell">${car.gap || '-'}</td>
-                        <td class="timing-cell">${car.last_lap || '-'}</td>
-                        <td class="timing-cell">${car.s1 || '-'}</td>
-                        <td class="timing-cell">${car.s2 || '-'}</td>
-                        <td class="timing-cell">${car.s3 || '-'}</td>
+                        <td class="mono">${c.laps || '-'}</td>
+                        <td class="mono">${c.gap}</td>
+                        <td class="mono">${c.interval}</td>
+                        <td class="mono">${c.s1}</td>
+                        <td class="mono">${c.s2}</td>
+                        <td class="mono">${c.s3}</td>
+                        <td class="mono">${c.last_lap}</td>
                     </tr>
                 `;
             });
-
-            tbody.innerHTML = html;
+            boardBody.innerHTML = html;
         }
 
-        // Initial poll and recurring 1-second refresh
+        function renderCircle(cars) {
+            const R = 120;
+            let nodesHtml = "";
+
+            // Calculate angles based on gap to leader relative to average lap (~125s)
+            const lapTimeEstimate = 125.0;
+
+            cars.forEach(c => {
+                let frac = 0;
+                if (c.pos === 1) {
+                    frac = 0;
+                } else if (c.gap_leader < 9000) {
+                    // Position along lap based on seconds behind leader modulo 1 lap
+                    frac = (c.gap_leader % lapTimeEstimate) / lapTimeEstimate;
+                }
+
+                // Angle: 0 at top (-90 deg), moves clockwise
+                const angle = (frac * 2 * Math.PI) - (Math.PI / 2);
+                const x = R * Math.cos(angle);
+                const y = R * Math.sin(angle);
+
+                const isP1 = c.pos === 1;
+                const fill = isP1 ? "#e3a936" : (c.in_pit ? "#d29922" : "#238636");
+
+                nodesHtml += `
+                    <g transform="translate(${x}, ${y})">
+                        <circle r="${isP1 ? 8 : 6}" fill="${fill}" stroke="#0b0d11" stroke-width="2" />
+                        <text y="3" text-anchor="middle" fill="#fff" font-size="7" font-weight="bold">${c.car}</text>
+                    </g>
+                `;
+            });
+            carNodes.innerHTML = nodesHtml;
+
+            // Draw Pit Loss Delta Window relative to the leader (P1)
+            if (togglePitWindow.checked && cars.length > 0) {
+                const lossSec = parseFloat(pitLossSec.value) || 22.0;
+                const pitFrac = (lossSec / lapTimeEstimate);
+                const startAngle = -Math.PI / 2;
+                const endAngle = startAngle + (pitFrac * 2 * Math.PI);
+
+                const x1 = R * Math.cos(startAngle);
+                const y1 = R * Math.sin(startAngle);
+                const x2 = R * Math.cos(endAngle);
+                const y2 = R * Math.sin(endAngle);
+
+                pitWedge.setAttribute("d", `M 0 0 L ${x1} ${y1} A ${R} ${R} 0 0 1 ${x2} ${y2} Z`);
+                pitWedge.style.display = "block";
+            } else {
+                pitWedge.style.display = "none";
+            }
+        }
+
         fetchTelemetry();
         setInterval(fetchTelemetry, 1000);
     </script>
