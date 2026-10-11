@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>V8 Supercars Live Timing - Bathurst Track Map</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0b0f19;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      height: 100vh;
+    }
+    header {
+      background: #151d30;
+      padding: 12px 20px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-left: 4px solid #22c55e;
+    }
+    .flag-badge {
+      background: #22c55e;
+      color: #052e16;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .main-layout {
+      display: flex;
+      gap: 16px;
+      flex: 1;
+      min-height: 0;
+    }
+    .table-container {
+      flex: 3;
+      background: #111827;
+      border-radius: 8px;
+      overflow-y: auto;
+      border: 1px solid #1f293d;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th {
+      background: #182238;
+      color: #94a3b8;
+      padding: 10px 12px;
+      position: sticky;
+      top: 0;
+      font-weight: 600;
+    }
+    td { padding: 9px 12px; border-bottom: 1px solid #1a2438; }
+    tr:hover { background: #1a253c; cursor: pointer; }
+    tr.selected { background: #1e3a5f; outline: 1px solid #38bdf8; }
+    .car-badge {
+      font-weight: 800;
+      display: inline-block;
+      width: 28px;
+      text-align: center;
+      padding: 2px 4px;
+      border-radius: 4px;
+      background: #000;
+    }
+    .purple { color: #d946ef; font-weight: bold; }
+    .green { color: #22c55e; font-weight: bold; }
+    .yellow { color: #eab308; }
+
+    /* Track Layout Container */
+    .strategy-container {
+      flex: 2.2;
+      background: #111827;
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1px solid #1f293d;
+      position: relative;
+    }
+    svg {
+      width: 100%;
+      height: 380px;
+      background: #080c14;
+      border-radius: 8px;
+    }
+    .track-bg {
+      fill: none;
+      stroke: #1e293b;
+      stroke-width: 14;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .track-pit-loss {
+      fill: none;
+      stroke: rgba(239, 68, 68, 0.45);
+      stroke-width: 22;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .
