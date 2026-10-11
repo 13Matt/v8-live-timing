@@ -1,151 +1,246 @@
-import asyncio
-import xml.etree.ElementTree as ET
-import websockets
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V8 Supercars Live Timing</title>
+    <style>
+        :root {
+            --bg-dark: #0f1115;
+            --panel-bg: #181b22;
+            --border-color: #2b303c;
+            --text-main: #f0f3f6;
+            --text-dim: #8b949e;
+            --accent-green: #238636;
+            --accent-red: #da3633;
+            --accent-gold: #d29922;
+            --pit-badge: #e3b341;
+        }
 
-app = FastAPI()
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            padding: 20px;
+        }
 
-NATSOFT_WS = "ws://server.natsoft.com.au:8080/LiveMeeting/V8SUPER"
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            padding: 16px 24px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
 
-# Official 2026 Bathurst 1000 field roster map
-CAR_MAP = {
-    "1": "B. Feeney",
-    "2": "W. Brown",
-    "3": "A. Heimgartner",
-    "4": "C. Waters",
-    "5": "J. Golding",
-    "6": "T. Randle",
-    "7": "J. Courtney",
-    "8": "A. De Pasquale",
-    "9": "J. Evans",
-    "10": "D. Wood",
-    "11": "M. Payne",
-    "12": "R. Stanaway",
-    "13": "Car #13",
-    "14": "B. Fullwood",
-    "15": "Car #15",
-    "16": "Car #16",
-    "17": "W. Davison",
-    "18": "M. Winterbottom",
-    "19": "M. Jones",
-    "20": "D. Reynolds",
-    "21": "M. Caruso",
-    "22": "Car #22",
-    "23": "T. Slade",
-    "24": "Car #24",
-    "25": "C. Mostert",
-    "26": "K. Evans",
-    "31": "J. Le Brocq",
-    "55": "T. Hazelwood",
-    "87": "W. Brown",
-    "88": "B. Feeney",
-    "96": "M. Jones",
-    "99": "B. Kostecki",
-}
+        .header h1 {
+            font-size: 1.4rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
 
-race_state = {}
+        .status-badge {
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 6px 14px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            background: #333;
+            color: #aaa;
+        }
 
-def parse_xml_packet(raw_xml: str):
-    """Parses live Natsoft XML delta packets into clean leaderboard state."""
-    try:
-        if not raw_xml.startswith("<"):
-            return
+        .status-live {
+            background: var(--accent-green);
+            color: #fff;
+            box-shadow: 0 0 10px rgba(35, 134, 54, 0.4);
+        }
 
-        try:
-            root = ET.fromstring(raw_xml)
-        except ET.ParseError:
-            root = ET.fromstring(f"<ROOT>{raw_xml}</ROOT>")
+        .status-error {
+            background: var(--accent-red);
+            color: #fff;
+        }
 
-        # Extract car records
-        p_nodes = root.findall(".//P")
-        for p in p_nodes:
-            raw_c = p.attrib.get("C")
-            if not raw_c:
-                continue
+        .table-container {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow-x: auto;
+        }
 
-            car_num = str(raw_c).strip()
-            existing = race_state.get(car_num, {})
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
 
-            # Parse position strictly
-            pos_val = p.attrib.get("P") or p.attrib.get("LP")
-            try:
-                pos_int = int(pos_val) if pos_val else existing.get("pos", 99)
-            except ValueError:
-                pos_int = existing.get("pos", 99)
+        th {
+            background-color: #12151b;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 12px 16px;
+            border-bottom: 2px solid var(--border-color);
+        }
 
-            # In Natsoft XML, 'LL' is Completed Laps; 'L' on <P> is line index
-            laps_val = p.attrib.get("LL") or p.attrib.get("LAP") or existing.get("laps", "-")
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.95rem;
+            font-variant-numeric: tabular-nums;
+        }
 
-            # Parse gaps
-            gap = existing.get("gap", "-")
-            d_node = p.find("D")
-            if d_node is not None:
-                lgi = d_node.attrib.get("LGI")
-                if lgi:
-                    try:
-                        gap_float = float(lgi)
-                        gap = "LEADER" if gap_float == 0.0 else f"+{gap_float:.2f}s"
-                    except ValueError:
-                        gap = lgi
+        tr:nth-child(even) {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
 
-            # Lap time & sector splits
-            last_lap = p.attrib.get("LT") or existing.get("last_lap", "-")
-            s1 = p.attrib.get("S1") or existing.get("s1", "-")
-            s2 = p.attrib.get("S2") or existing.get("s2", "-")
-            s3 = p.attrib.get("S3") or existing.get("s3", "-")
-            in_pit = p.attrib.get("PS") == "1" or "PIT" in str(p.attrib).upper()
+        tr:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
 
-            driver_name = p.attrib.get("N") or CAR_MAP.get(car_num, f"Car #{car_num}")
+        .pos-cell {
+            font-weight: 800;
+            width: 50px;
+        }
 
-            race_state[car_num] = {
-                "pos": pos_int,
-                "car": car_num,
-                "name": driver_name,
-                "laps": str(laps_val),
-                "gap": gap,
-                "last_lap": last_lap,
-                "s1": s1,
-                "s2": s2,
-                "s3": s3,
-                "in_pit": in_pit,
+        .p1 { color: var(--accent-gold); }
+        .p2 { color: #c0c0c0; }
+        .p3 { color: #cd7f32; }
+
+        .car-num {
+            font-weight: 700;
+            background: #252a35;
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            display: inline-block;
+            text-align: center;
+            min-width: 28px;
+        }
+
+        .driver-name {
+            font-weight: 600;
+        }
+
+        .pit-indicator {
+            background-color: var(--pit-badge);
+            color: #000;
+            font-weight: 800;
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 8px;
+        }
+
+        .timing-cell {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>V8 Supercars Live Telemetry</h1>
+        <div id="statusBadge" class="status-badge">CONNECTING...</div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Pos</th>
+                    <th>#</th>
+                    <th>Driver</th>
+                    <th>Laps</th>
+                    <th>Gap / Int</th>
+                    <th>Last Lap</th>
+                    <th>S1</th>
+                    <th>S2</th>
+                    <th>S3</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboardBody">
+                <tr>
+                    <td colspan="9" style="text-align: center; color: var(--text-dim); padding: 30px;">
+                        Waiting for live telemetry stream...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const TELEMETRY_URL = "https://vigilant-space-cod-jjj576w975963qrvq-8765.app.github.dev/telemetry";
+        const statusBadge = document.getElementById("statusBadge");
+        const tbody = document.getElementById("leaderboardBody");
+
+        async function fetchTelemetry() {
+            try {
+                const response = await fetch(TELEMETRY_URL, { cache: "no-store" });
+                if (!response.ok) throw new Error("HTTP error " + response.status);
+
+                const data = await response.json();
+
+                if (data && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
+                    renderLeaderboard(data.leaderboard);
+                    statusBadge.textContent = "LIVE NATSOFT";
+                    statusBadge.className = "status-badge status-live";
+                }
+            } catch (err) {
+                console.warn("Polling error:", err);
+                statusBadge.textContent = "OFFLINE";
+                statusBadge.className = "status-badge status-error";
             }
-    except Exception:
-        pass
+        }
 
-async def natsoft_ws_listener():
-    """Maintains a persistent live WebSocket link to the Natsoft feed."""
-    while True:
-        try:
-            print(f"[Natsoft WS] Connecting to {NATSOFT_WS}...")
-            async with websockets.connect(NATSOFT_WS, ping_interval=15, ping_timeout=15) as ws:
-                print("[Natsoft WS] Connected & streaming live race packets!")
-                while True:
-                    packet = await ws.recv()
-                    if isinstance(packet, str):
-                        parse_xml_packet(packet)
-        except Exception as e:
-            print(f"[Natsoft WS Dropped] {e}. Reconnecting in 2s...")
-            await asyncio.sleep(2.0)
+        function renderLeaderboard(cars) {
+            // Sort strictly by position
+            cars.sort((a, b) => a.pos - b.pos);
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(natsoft_ws_listener())
+            // Build replacement HTML to eliminate stale or duplicate rows
+            let html = "";
+            cars.forEach(car => {
+                let posClass = "";
+                if (car.pos === 1) posClass = "p1";
+                else if (car.pos === 2) posClass = "p2";
+                else if (car.pos === 3) posClass = "p3";
 
-@app.get("/telemetry")
-async def get_telemetry():
-    leaderboard = list(race_state.values())
-    leaderboard.sort(key=lambda x: (x["pos"], x["car"]))
-    return {"leaderboard": leaderboard}
+                html += `
+                    <tr>
+                        <td class="pos-cell ${posClass}">P${car.pos}</td>
+                        <td><span class="car-num">${car.car}</span></td>
+                        <td class="driver-name">
+                            ${car.name}
+                            ${car.in_pit ? '<span class="pit-indicator">PIT</span>' : ''}
+                        </td>
+                        <td class="timing-cell">${car.laps || '-'}</td>
+                        <td class="timing-cell">${car.gap || '-'}</td>
+                        <td class="timing-cell">${car.last_lap || '-'}</td>
+                        <td class="timing-cell">${car.s1 || '-'}</td>
+                        <td class="timing-cell">${car.s2 || '-'}</td>
+                        <td class="timing-cell">${car.s3 || '-'}</td>
+                    </tr>
+                `;
+            });
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8765)
+            tbody.innerHTML = html;
+        }
+
+        // Poll every 1 second
+        fetchTelemetry();
+        setInterval(fetchTelemetry, 1000);
+    </script>
+</body>
+</html>
