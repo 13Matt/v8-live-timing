@@ -86,10 +86,7 @@
       border-radius: 8px;
       position: relative;
     }
-    svg {
-      width: 100%;
-      height: 100%;
-    }
+    svg { width: 100%; height: 100%; }
     .track-bg {
       fill: none;
       stroke: #2a374f;
@@ -141,7 +138,6 @@
   </header>
 
   <div class="main-layout">
-    <!-- Timing Tower Table -->
     <div class="table-container">
       <table>
         <thead>
@@ -157,13 +153,10 @@
             <th>PIT</th>
           </tr>
         </thead>
-        <tbody id="leaderboardBody">
-          <!-- Injected via JavaScript -->
-        </tbody>
+        <tbody id="leaderboardBody"></tbody>
       </table>
     </div>
 
-    <!-- Bathurst Track Map Visualizer -->
     <div class="strategy-container">
       <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
         <h3 style="letter-spacing: 1px; font-size: 13px; color: #94a3b8;">MOUNT PANORAMA CIRCUIT</h3>
@@ -200,7 +193,6 @@
 
           <path id="pitLossPath" class="track-pit-loss" d="" />
 
-          <!-- Landmarks -->
           <text x="75" y="450" fill="#64748b" font-size="9" font-family="monospace">PIT STRAIGHT</text>
           <text x="32" y="310" fill="#64748b" font-size="9" font-family="monospace">MOUNTAIN STR.</text>
           <text x="175" y="222" fill="#64748b" font-size="9" font-family="monospace">CUTTING</text>
@@ -228,7 +220,7 @@
   </div>
 
   <script>
-    const WS_URL = "wss://vigilant-space-cod-jjj576w975963qrvq-8765.app.github.dev";
+    const API_URL = "https://vigilant-space-cod-jjj576w975963qrvq-8765.app.github.dev/telemetry";
 
     const TEAM_COLORS = [
       "#e11d48", "#0284c7", "#16a34a", "#eab308", 
@@ -280,9 +272,7 @@
       if (!trackPath) return;
 
       let totalLength = 1800;
-      try {
-        totalLength = trackPath.getTotalLength();
-      } catch (e) {}
+      try { totalLength = trackPath.getTotalLength(); } catch (e) {}
 
       const carsGroup = document.getElementById("carsGroup");
       const pitLossPath = document.getElementById("pitLossPath");
@@ -293,7 +283,6 @@
         try {
           const carDist = targetCar.progress * totalLength;
           const lossDist = PIT_LOSS_FRACTION * totalLength;
-          
           let pathData = "";
           const steps = 30;
           for (let i = 0; i <= steps; i++) {
@@ -318,7 +307,6 @@
             const dist = d.progress * totalLength;
             const pt = trackPath.getPointAtLength(dist);
             const isSelected = d.car === selectedCar;
-
             html += `
               <g transform="translate(${pt.x}, ${pt.y})">
                 <circle r="${isSelected ? 8 : 5}" fill="${d.color}" stroke="${isSelected ? '#ffffff' : '#000000'}" stroke-width="${isSelected ? 2 : 1.5}" />
@@ -336,70 +324,66 @@
         d.progress += 0.0006;
         if (d.progress > 1.0) d.progress -= 1.0;
       });
-
       renderTrackMap();
       requestAnimationFrame(updatePositions);
     }
 
-    function initWebSocket() {
+    // Direct HTTP Polling Loop
+    async function pollLiveTelemetry() {
       const badge = document.getElementById("connectionBadge");
       try {
-        const socket = new WebSocket(WS_URL);
+        const res = await fetch(API_URL);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.leaderboard && data.leaderboard.length > 0) {
+            data.leaderboard.forEach((liveCar, idx) => {
+              let existing = drivers.find(d => d.car === String(liveCar.car));
+              if (existing) {
+                existing.pos = liveCar.pos || (idx + 1);
+                existing.name = liveCar.name || existing.name;
+                existing.gap = liveCar.gap || existing.gap;
+                existing.last_lap = liveCar.last_lap || existing.last_lap;
+                existing.s1 = liveCar.s1 || "-";
+                existing.s2 = liveCar.s2 || "-";
+                existing.s3 = liveCar.s3 || "-";
+                existing.pits = liveCar.in_pit ? (existing.pits + 1) : existing.pits;
+              } else {
+                drivers.push({
+                  pos: liveCar.pos || (idx + 1),
+                  car: String(liveCar.car),
+                  name: liveCar.name || `Car #${liveCar.car}`,
+                  color: TEAM_COLORS[drivers.length % TEAM_COLORS.length],
+                  gap: liveCar.gap || "-",
+                  last_lap: liveCar.last_lap || "-",
+                  s1: liveCar.s1 || "-",
+                  s2: liveCar.s2 || "-",
+                  s3: liveCar.s3 || "-",
+                  pits: liveCar.in_pit ? 1 : 0,
+                  progress: (idx * 0.1) % 1.0
+                });
+              }
+            });
+            drivers.sort((a, b) => a.pos - b.pos);
+            renderTable();
 
-        socket.onopen = () => {
-          if (badge) {
-            badge.textContent = "LIVE NATSOFT";
-            badge.className = "connection-status status-live";
-          }
-        };
-
-        socket.onmessage = (event) => {
-          try {
-            const payload = JSON.parse(event.data);
-            if (payload.type === "TIMING_UPDATE" && payload.leaderboard?.length > 0) {
-              payload.leaderboard.forEach((liveCar, idx) => {
-                let existing = drivers.find(d => d.car === String(liveCar.car));
-                if (existing) {
-                  existing.pos = liveCar.pos || (idx + 1);
-                  existing.name = liveCar.name || existing.name;
-                  existing.gap = liveCar.gap || existing.gap;
-                  existing.last_lap = liveCar.last_lap || existing.last_lap;
-                  existing.s1 = liveCar.s1 || "-";
-                  existing.s2 = liveCar.s2 || "-";
-                  existing.s3 = liveCar.s3 || "-";
-                  existing.pits = liveCar.in_pit ? (existing.pits + 1) : existing.pits;
-                }
-              });
-              drivers.sort((a, b) => a.pos - b.pos);
-              renderTable();
+            if (badge) {
+              badge.textContent = "LIVE NATSOFT";
+              badge.className = "connection-status status-live";
             }
-          } catch (err) {}
-        };
-
-        socket.onerror = () => {
-          if (badge) {
-            badge.textContent = "SIMULATION MODE";
-            badge.className = "connection-status status-sim";
           }
-        };
-
-        socket.onclose = () => {
-          if (badge) {
-            badge.textContent = "SIMULATION MODE";
-            badge.className = "connection-status status-sim";
-          }
-        };
+        }
       } catch (err) {
-        if (badge) {
+        if (badge && badge.textContent !== "LIVE NATSOFT") {
           badge.textContent = "SIMULATION MODE";
           badge.className = "connection-status status-sim";
         }
       }
+      setTimeout(pollLiveTelemetry, 1500);
     }
 
-    // Direct render on startup
+    // Direct initialization
     renderTable();
-    initWebSocket();
+    pollLiveTelemetry();
     requestAnimationFrame(updatePositions);
   </script>
 </body>
