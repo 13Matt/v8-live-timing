@@ -1,390 +1,151 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>V8 Supercars Live Timing - Mount Panorama</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background-color: #0b0f19;
-      color: #e2e8f0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      height: 100vh;
-    }
-    header {
-      background: #151d30;
-      padding: 12px 20px;
-      border-radius: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-left: 4px solid #22c55e;
-    }
-    .flag-badge {
-      background: #22c55e;
-      color: #052e16;
-      font-weight: 800;
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 13px;
-    }
-    .main-layout {
-      display: flex;
-      gap: 16px;
-      flex: 1;
-      min-height: 0;
-    }
-    .table-container {
-      flex: 3;
-      background: #111827;
-      border-radius: 8px;
-      overflow-y: auto;
-      border: 1px solid #1f293d;
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
-    th {
-      background: #182238;
-      color: #94a3b8;
-      padding: 10px 12px;
-      position: sticky;
-      top: 0;
-      font-weight: 600;
-    }
-    td { padding: 9px 12px; border-bottom: 1px solid #1a2438; }
-    tr:hover { background: #1a253c; cursor: pointer; }
-    tr.selected { background: #1e3a5f; outline: 1px solid #38bdf8; }
-    .car-badge {
-      font-weight: 800;
-      display: inline-block;
-      width: 28px;
-      text-align: center;
-      padding: 2px 4px;
-      border-radius: 4px;
-      background: #000;
-    }
-    .green { color: #22c55e; font-weight: bold; }
-    .yellow { color: #eab308; }
+import asyncio
+import xml.etree.ElementTree as ET
+import websockets
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
-    .strategy-container {
-      flex: 2.2;
-      background: #111827;
-      border-radius: 8px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      border: 1px solid #1f293d;
-    }
-    .svg-wrapper {
-      width: 100%;
-      height: 380px;
-      background: #080c14;
-      border-radius: 8px;
-      position: relative;
-    }
-    svg { width: 100%; height: 100%; }
-    .track-bg {
-      fill: none;
-      stroke: #2a374f;
-      stroke-width: 16;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-    .track-pit-loss {
-      fill: none;
-      stroke: rgba(239, 68, 68, 0.5);
-      stroke-width: 24;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-    .controls {
-      margin-top: 12px;
-      background: #151d30;
-      padding: 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .control-row { display: flex; justify-content: space-between; align-items: center; }
-    .connection-status {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 4px;
-      background: #1e293b;
-      color: #94a3b8;
-    }
-    .status-live { color: #22c55e; font-weight: bold; }
-    .status-sim { color: #f59e0b; font-weight: bold; }
-  </style>
-</head>
-<body>
+app = FastAPI()
 
-  <header>
-    <div>
-      <span style="font-weight: 800; font-size: 16px; letter-spacing: 1px;">SUPERCAR CHAMPIONSHIP</span>
-      <span style="color: #64748b; margin-left: 12px;">MOUNT PANORAMA, BATHURST</span>
-    </div>
-    <div style="display: flex; gap: 16px; align-items: center;">
-      <span id="connectionBadge" class="connection-status status-sim">CONNECTING...</span>
-      <span>LAP <b>18</b> / 161</span>
-      <span class="flag-badge">GREEN FLAG</span>
-    </div>
-  </header>
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-  <div class="main-layout">
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>POS</th>
-            <th>#</th>
-            <th>DRIVER</th>
-            <th>GAP</th>
-            <th>LAST LAP</th>
-            <th>S1</th>
-            <th>S2</th>
-            <th>S3</th>
-            <th>PIT</th>
-          </tr>
-        </thead>
-        <tbody id="leaderboardBody"></tbody>
-      </table>
-    </div>
+NATSOFT_WS = "ws://server.natsoft.com.au:8080/LiveMeeting/V8SUPER"
 
-    <div class="strategy-container">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-        <h3 style="letter-spacing: 1px; font-size: 13px; color: #94a3b8;">MOUNT PANORAMA CIRCUIT</h3>
-        <span style="font-size: 11px; color: #64748b;">6.213 km Circuit</span>
-      </div>
+# Official 2026 Bathurst 1000 field roster map
+CAR_MAP = {
+    "1": "B. Feeney",
+    "2": "W. Brown",
+    "3": "A. Heimgartner",
+    "4": "C. Waters",
+    "5": "J. Golding",
+    "6": "T. Randle",
+    "7": "J. Courtney",
+    "8": "A. De Pasquale",
+    "9": "J. Evans",
+    "10": "D. Wood",
+    "11": "M. Payne",
+    "12": "R. Stanaway",
+    "13": "Car #13",
+    "14": "B. Fullwood",
+    "15": "Car #15",
+    "16": "Car #16",
+    "17": "W. Davison",
+    "18": "M. Winterbottom",
+    "19": "M. Jones",
+    "20": "D. Reynolds",
+    "21": "M. Caruso",
+    "22": "Car #22",
+    "23": "T. Slade",
+    "24": "Car #24",
+    "25": "C. Mostert",
+    "26": "K. Evans",
+    "31": "J. Le Brocq",
+    "55": "T. Hazelwood",
+    "87": "W. Brown",
+    "88": "B. Feeney",
+    "96": "M. Jones",
+    "99": "B. Kostecki",
+}
 
-      <div class="svg-wrapper">
-        <svg id="trackSvg" viewBox="0 0 520 480">
-          <path id="bathurstTrack" class="track-bg" d="
-            M 125 430
-            L 65 430
-            C 45 430, 36 415, 42 400
-            L 135 220
-            C 140 210, 150 205, 162 205
-            L 210 205
-            C 222 202, 228 192, 225 178
-            L 210 115
-            C 205 92, 222 72, 246 70
-            L 340 65
-            C 375 63, 400 82, 405 110
-            C 410 136, 390 158, 368 164
-            L 326 172
-            C 312 175, 306 188, 314 200
-            L 352 225
-            C 366 235, 362 254, 344 260
-            L 262 274
-            C 244 277, 240 292, 250 306
-            L 395 372
-            C 412 380, 416 396, 402 408
-            L 352 430
-            C 336 437, 326 430, 320 416
-            L 300 430
-            Z" />
+race_state = {}
 
-          <path id="pitLossPath" class="track-pit-loss" d="" />
+def parse_xml_packet(raw_xml: str):
+    """Parses live Natsoft XML delta packets into clean leaderboard state."""
+    try:
+        if not raw_xml.startswith("<"):
+            return
 
-          <text x="75" y="450" fill="#64748b" font-size="9" font-family="monospace">PIT STRAIGHT</text>
-          <text x="32" y="310" fill="#64748b" font-size="9" font-family="monospace">MOUNTAIN STR.</text>
-          <text x="175" y="222" fill="#64748b" font-size="9" font-family="monospace">CUTTING</text>
-          <text x="270" y="55" fill="#64748b" font-size="9" font-family="monospace">SKYLINE</text>
-          <text x="415" y="110" fill="#64748b" font-size="9" font-family="monospace">ESSES</text>
-          <text x="330" y="285" fill="#64748b" font-size="9" font-family="monospace">FORREST'S</text>
-          <text x="375" y="350" fill="#64748b" font-size="9" font-family="monospace">CONROD STR.</text>
-          <text x="410" y="430" fill="#64748b" font-size="9" font-family="monospace">THE CHASE</text>
+        try:
+            root = ET.fromstring(raw_xml)
+        except ET.ParseError:
+            root = ET.fromstring(f"<ROOT>{raw_xml}</ROOT>")
 
-          <g id="carsGroup"></g>
-        </svg>
-      </div>
-      
-      <div class="controls">
-        <div class="control-row">
-          <span>Tracking Focus:</span>
-          <b id="selectedDriverLabel" style="color: #38bdf8;">#88 B. Feeney</b>
-        </div>
-        <div class="control-row">
-          <label><input type="checkbox" id="pitToggle" checked> Pit Loss Overlay Window</label>
-          <span style="color: #ef4444; font-weight: bold;">-32.0s</span>
-        </div>
-      </div>
-    </div>
-  </div>
+        # Extract car records
+        p_nodes = root.findall(".//P")
+        for p in p_nodes:
+            raw_c = p.attrib.get("C")
+            if not raw_c:
+                continue
 
-  <script>
-    const API_URL = "https://vigilant-space-cod-jjj576w975963qrvq-8765.app.github.dev/telemetry";
+            car_num = str(raw_c).strip()
+            existing = race_state.get(car_num, {})
 
-    const TEAM_COLORS = [
-      "#e11d48", "#0284c7", "#16a34a", "#eab308", 
-      "#8b5cf6", "#ec4899", "#f97316", "#06b6d4"
-    ];
+            # Parse position strictly
+            pos_val = p.attrib.get("P") or p.attrib.get("LP")
+            try:
+                pos_int = int(pos_val) if pos_val else existing.get("pos", 99)
+            except ValueError:
+                pos_int = existing.get("pos", 99)
 
-    let drivers = [
-      { car: "88", name: "B. Feeney", color: "#e11d48", pos: 1, gap: "LEADER", progress: 0.88, last_lap: "2:05.120", s1: "31.890", s2: "32.410", s3: "32.220", pits: 1 },
-      { car: "25", name: "C. Mostert", color: "#0284c7", pos: 2, gap: "+0.42s", progress: 0.85, last_lap: "2:05.340", s1: "31.950", s2: "32.500", s3: "32.310", pits: 1 },
-      { car: "87", name: "W. Brown", color: "#e11d48", pos: 3, gap: "+1.15s", progress: 0.80, last_lap: "2:05.620", s1: "32.100", s2: "32.480", s3: "32.410", pits: 1 },
-      { car: "2",  name: "M. Payne", color: "#0284c7", pos: 4, gap: "+3.80s", progress: 0.72, last_lap: "2:05.890", s1: "32.150", s2: "32.610", s3: "32.500", pits: 2 },
-      { car: "17", name: "W. Davison", color: "#dc2626", pos: 5, gap: "+6.40s", progress: 0.58, last_lap: "2:06.120", s1: "32.300", s2: "32.720", s3: "32.580", pits: 1 },
-      { car: "19", name: "M. Winterbottom", color: "#eab308", pos: 6, gap: "+9.20s", progress: 0.50, last_lap: "2:06.450", s1: "32.420", s2: "32.800", s3: "32.650", pits: 1 },
-      { car: "31", name: "J. Le Brocq", color: "#16a34a", pos: 7, gap: "+14.3s", progress: 0.22, last_lap: "2:06.880", s1: "32.550", s2: "32.910", s3: "32.740", pits: 2 },
-      { car: "11", name: "A. De Pasquale", color: "#dc2626", pos: 8, gap: "+18.9s", progress: 0.08, last_lap: "2:07.100", s1: "32.620", s2: "33.010", s3: "32.850", pits: 1 }
-    ];
+            # In Natsoft XML, 'LL' is Completed Laps; 'L' on <P> is line index
+            laps_val = p.attrib.get("LL") or p.attrib.get("LAP") or existing.get("laps", "-")
 
-    let selectedCar = "88";
-    const PIT_LOSS_FRACTION = 32.0 / 128.0;
+            # Parse gaps
+            gap = existing.get("gap", "-")
+            d_node = p.find("D")
+            if d_node is not None:
+                lgi = d_node.attrib.get("LGI")
+                if lgi:
+                    try:
+                        gap_float = float(lgi)
+                        gap = "LEADER" if gap_float == 0.0 else f"+{gap_float:.2f}s"
+                    except ValueError:
+                        gap = lgi
 
-    function renderTable() {
-      const tbody = document.getElementById("leaderboardBody");
-      if (!tbody) return;
+            # Lap time & sector splits
+            last_lap = p.attrib.get("LT") or existing.get("last_lap", "-")
+            s1 = p.attrib.get("S1") or existing.get("s1", "-")
+            s2 = p.attrib.get("S2") or existing.get("s2", "-")
+            s3 = p.attrib.get("S3") or existing.get("s3", "-")
+            in_pit = p.attrib.get("PS") == "1" or "PIT" in str(p.attrib).upper()
 
-      tbody.innerHTML = drivers.map(d => `
-        <tr class="${d.car === selectedCar ? 'selected' : ''}" onclick="selectDriver('${d.car}', '${d.name.replace(/'/g, "\\'")}')">
-          <td style="font-weight: 800; color: #94a3b8;">${d.pos}</td>
-          <td><span class="car-badge" style="border: 2px solid ${d.color};">${d.car}</span></td>
-          <td style="font-weight: 600;">${d.name}</td>
-          <td style="color: #38bdf8;">${d.gap}</td>
-          <td>${d.last_lap}</td>
-          <td class="${d.s1 !== '-' && d.s1.includes('.') ? 'green' : ''}">${d.s1}</td>
-          <td class="${d.s2 !== '-' && d.s2.includes('.') ? 'yellow' : ''}">${d.s2}</td>
-          <td class="${d.s3 !== '-' && d.s3.includes('.') ? 'yellow' : ''}">${d.s3}</td>
-          <td style="color: #94a3b8;">${d.pits}</td>
-        </tr>
-      `).join('');
-    }
+            driver_name = p.attrib.get("N") or CAR_MAP.get(car_num, f"Car #{car_num}")
 
-    function selectDriver(carNum, name) {
-      selectedCar = carNum;
-      const label = document.getElementById("selectedDriverLabel");
-      if (label) label.innerText = `#${carNum} ${name}`;
-      renderTable();
-    }
-
-    function renderTrackMap() {
-      const trackPath = document.getElementById("bathurstTrack");
-      if (!trackPath) return;
-
-      let totalLength = 1800;
-      try { totalLength = trackPath.getTotalLength(); } catch (e) {}
-
-      const carsGroup = document.getElementById("carsGroup");
-      const pitLossPath = document.getElementById("pitLossPath");
-      const showOverlay = document.getElementById("pitToggle")?.checked;
-      const targetCar = drivers.find(d => d.car === selectedCar);
-
-      if (targetCar && showOverlay && pitLossPath) {
-        try {
-          const carDist = targetCar.progress * totalLength;
-          const lossDist = PIT_LOSS_FRACTION * totalLength;
-          let pathData = "";
-          const steps = 30;
-          for (let i = 0; i <= steps; i++) {
-            let sampleDist = carDist - (lossDist * (i / steps));
-            if (sampleDist < 0) sampleDist += totalLength;
-            const pt = trackPath.getPointAtLength(sampleDist);
-            pathData += (i === 0 ? `M ${pt.x} ${pt.y}` : ` L ${pt.x} ${pt.y}`);
-          }
-          pitLossPath.setAttribute("d", pathData);
-          pitLossPath.style.display = "block";
-        } catch (e) {
-          pitLossPath.style.display = "none";
-        }
-      } else if (pitLossPath) {
-        pitLossPath.style.display = "none";
-      }
-
-      if (carsGroup) {
-        try {
-          let html = "";
-          drivers.forEach(d => {
-            const dist = d.progress * totalLength;
-            const pt = trackPath.getPointAtLength(dist);
-            const isSelected = d.car === selectedCar;
-            html += `
-              <g transform="translate(${pt.x}, ${pt.y})">
-                <circle r="${isSelected ? 8 : 5}" fill="${d.color}" stroke="${isSelected ? '#ffffff' : '#000000'}" stroke-width="${isSelected ? 2 : 1.5}" />
-                <text x="10" y="3" fill="#ffffff" font-size="9" font-weight="bold" font-family="sans-serif">#${d.car}</text>
-              </g>
-            `;
-          });
-          carsGroup.innerHTML = html;
-        } catch (e) {}
-      }
-    }
-
-    function updatePositions() {
-      drivers.forEach(d => {
-        d.progress += 0.0006;
-        if (d.progress > 1.0) d.progress -= 1.0;
-      });
-      renderTrackMap();
-      requestAnimationFrame(updatePositions);
-    }
-
-    // Direct HTTP Polling Loop
-    async function pollLiveTelemetry() {
-      const badge = document.getElementById("connectionBadge");
-      try {
-        const res = await fetch(API_URL);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.leaderboard && data.leaderboard.length > 0) {
-            data.leaderboard.forEach((liveCar, idx) => {
-              let existing = drivers.find(d => d.car === String(liveCar.car));
-              if (existing) {
-                existing.pos = liveCar.pos || (idx + 1);
-                existing.name = liveCar.name || existing.name;
-                existing.gap = liveCar.gap || existing.gap;
-                existing.last_lap = liveCar.last_lap || existing.last_lap;
-                existing.s1 = liveCar.s1 || "-";
-                existing.s2 = liveCar.s2 || "-";
-                existing.s3 = liveCar.s3 || "-";
-                existing.pits = liveCar.in_pit ? (existing.pits + 1) : existing.pits;
-              } else {
-                drivers.push({
-                  pos: liveCar.pos || (idx + 1),
-                  car: String(liveCar.car),
-                  name: liveCar.name || `Car #${liveCar.car}`,
-                  color: TEAM_COLORS[drivers.length % TEAM_COLORS.length],
-                  gap: liveCar.gap || "-",
-                  last_lap: liveCar.last_lap || "-",
-                  s1: liveCar.s1 || "-",
-                  s2: liveCar.s2 || "-",
-                  s3: liveCar.s3 || "-",
-                  pits: liveCar.in_pit ? 1 : 0,
-                  progress: (idx * 0.1) % 1.0
-                });
-              }
-            });
-            drivers.sort((a, b) => a.pos - b.pos);
-            renderTable();
-
-            if (badge) {
-              badge.textContent = "LIVE NATSOFT";
-              badge.className = "connection-status status-live";
+            race_state[car_num] = {
+                "pos": pos_int,
+                "car": car_num,
+                "name": driver_name,
+                "laps": str(laps_val),
+                "gap": gap,
+                "last_lap": last_lap,
+                "s1": s1,
+                "s2": s2,
+                "s3": s3,
+                "in_pit": in_pit,
             }
-          }
-        }
-      } catch (err) {
-        if (badge && badge.textContent !== "LIVE NATSOFT") {
-          badge.textContent = "SIMULATION MODE";
-          badge.className = "connection-status status-sim";
-        }
-      }
-      setTimeout(pollLiveTelemetry, 1500);
-    }
+    except Exception:
+        pass
 
-    // Direct initialization
-    renderTable();
-    pollLiveTelemetry();
-    requestAnimationFrame(updatePositions);
-  </script>
-</body>
-</html>
+async def natsoft_ws_listener():
+    """Maintains a persistent live WebSocket link to the Natsoft feed."""
+    while True:
+        try:
+            print(f"[Natsoft WS] Connecting to {NATSOFT_WS}...")
+            async with websockets.connect(NATSOFT_WS, ping_interval=15, ping_timeout=15) as ws:
+                print("[Natsoft WS] Connected & streaming live race packets!")
+                while True:
+                    packet = await ws.recv()
+                    if isinstance(packet, str):
+                        parse_xml_packet(packet)
+        except Exception as e:
+            print(f"[Natsoft WS Dropped] {e}. Reconnecting in 2s...")
+            await asyncio.sleep(2.0)
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(natsoft_ws_listener())
+
+@app.get("/telemetry")
+async def get_telemetry():
+    leaderboard = list(race_state.values())
+    leaderboard.sort(key=lambda x: (x["pos"], x["car"]))
+    return {"leaderboard": leaderboard}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8765)
